@@ -77,42 +77,42 @@ async function seedDatabase() {
   const stock1 = await storage.createStock({
     date: new Date().toISOString().split('T')[0],
     symbol: "006400",
-    name: "Samsung SDI", // Example big mover
+    name: "삼성SDI", // Example big mover
     price: 385000,
     changeRate: "29.85",
     sector: "Batteries",
     marketType: "KOSPI",
     reasonSummary: "", // To be analyzed
   });
-  await storage.createNews(stock1.id, { title: "Samsung SDI announces next-gen solid state battery production", url: "#", publisher: "Korea Economic Daily" });
-  await storage.createNews(stock1.id, { title: "EV sector rally drives battery stocks up", url: "#", publisher: "Yonhap News" });
+  await storage.createNews(stock1.id, { title: "삼성SDI, 차세대 전고체 배터리 양산 계획 발표", url: "#", publisher: "한국경제" });
+  await storage.createNews(stock1.id, { title: "전기차 섹터 반등에 배터리주 일제히 상승", url: "#", publisher: "연합뉴스" });
 
   // Mock Stock 2: Bio
   const stock2 = await storage.createStock({
     date: new Date().toISOString().split('T')[0],
     symbol: "068270",
-    name: "Celltrion", 
+    name: "셀트리온", 
     price: 185000,
     changeRate: "30.00",
     sector: "Biotech",
     marketType: "KOSPI",
     reasonSummary: "",
   });
-  await storage.createNews(stock2.id, { title: "FDA approves new biosimilar drug", url: "#", publisher: "Maeil Business" });
-  await storage.createNews(stock2.id, { title: "Celltrion earnings surprise in Q4", url: "#", publisher: "Hankyung" });
+  await storage.createNews(stock2.id, { title: "FDA, 신규 바이오시밀러 품목 허가 승인", url: "#", publisher: "매일경제" });
+  await storage.createNews(stock2.id, { title: "셀트리온, 4분기 어닝 서프라이즈 기록", url: "#", publisher: "한경" });
 
   // Mock Stock 3: Tech/AI (Small cap)
   const stock3 = await storage.createStock({
     date: new Date().toISOString().split('T')[0],
-    symbol: "000660", // Actually SK Hynix but let's pretend it's a smaller supplier for the 'upper limit' narrative or just use a generic name
-    name: "Hanmi Semiconductor", 
+    symbol: "042700", 
+    name: "한미반도체", 
     price: 62000,
     changeRate: "29.90",
     sector: "Semiconductor",
     marketType: "KOSDAQ",
     reasonSummary: "",
   });
-  await storage.createNews(stock3.id, { title: "HBM equipment supply deal with NVIDIA rumored", url: "#", publisher: "Electronic Times" });
+  await storage.createNews(stock3.id, { title: "엔비디아에 HBM 장비 공급 계약 체결 소식", url: "#", publisher: "전자신문" });
   
   console.log("Seeding complete.");
 }
