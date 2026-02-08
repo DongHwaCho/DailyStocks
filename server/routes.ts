@@ -84,8 +84,8 @@ async function seedDatabase() {
     marketType: "KOSPI",
     reasonSummary: "", // To be analyzed
   });
-  await storage.createNews(stock1.id, { title: "삼성SDI, 차세대 전고체 배터리 양산 계획 발표", url: "#", publisher: "한국경제" });
-  await storage.createNews(stock1.id, { title: "전기차 섹터 반등에 배터리주 일제히 상승", url: "#", publisher: "연합뉴스" });
+  await storage.createNews(stock1.id, { title: "삼성SDI, 차세대 전고체 배터리 양산 계획 발표", url: "https://www.hankyung.com/article/202602081234", publisher: "한국경제" });
+  await storage.createNews(stock1.id, { title: "전기차 섹터 반등에 배터리주 일제히 상승", url: "https://www.yna.co.kr/view/AKR202602085678", publisher: "연합뉴스" });
 
   // Mock Stock 2: Bio
   const stock2 = await storage.createStock({
@@ -98,8 +98,8 @@ async function seedDatabase() {
     marketType: "KOSPI",
     reasonSummary: "",
   });
-  await storage.createNews(stock2.id, { title: "FDA, 신규 바이오시밀러 품목 허가 승인", url: "#", publisher: "매일경제" });
-  await storage.createNews(stock2.id, { title: "셀트리온, 4분기 어닝 서프라이즈 기록", url: "#", publisher: "한경" });
+  await storage.createNews(stock2.id, { title: "FDA, 신규 바이오시밀러 품목 허가 승인", url: "https://www.mk.co.kr/news/business/2026/02/08/9012", publisher: "매일경제" });
+  await storage.createNews(stock2.id, { title: "셀트리온, 4분기 어닝 서프라이즈 기록", url: "https://www.hankyung.com/article/202602083456", publisher: "한경" });
 
   // Mock Stock 3: Tech/AI (Small cap)
   const stock3 = await storage.createStock({
@@ -112,7 +112,7 @@ async function seedDatabase() {
     marketType: "KOSDAQ",
     reasonSummary: "",
   });
-  await storage.createNews(stock3.id, { title: "엔비디아에 HBM 장비 공급 계약 체결 소식", url: "#", publisher: "전자신문" });
+  await storage.createNews(stock3.id, { title: "엔비디아에 HBM 장비 공급 계약 체결 소식", url: "https://www.etnews.com/202602080001", publisher: "전자신문" });
   
   console.log("Seeding complete.");
 }
