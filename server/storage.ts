@@ -1,38 +1,59 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { db } from "./db";
+import { upperLimitStocks, newsArticles, type Stock, type News, type StockWithNews, type CreateStockRequest } from "@shared/schema";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getStocks(date?: string): Promise<StockWithNews[]>;
+  getStock(id: number): Promise<StockWithNews | undefined>;
+  updateStockReason(id: number, reason: string): Promise<Stock>;
+  // For seeding/internal use
+  createStock(stock: CreateStockRequest): Promise<Stock>;
+  createNews(stockId: number, news: { title: string; url: string; publisher: string }): Promise<News>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  async getStocks(date?: string): Promise<StockWithNews[]> {
+    const stocks = await db.select().from(upperLimitStocks).orderBy(desc(upperLimitStocks.price));
+    // Ideally filter by date if provided, but for MVP/Seed we might just return all valid "latest" ones
+    // fetching relations manually or using query builder if configured, but keeping it simple:
+    
+    const results = await Promise.all(stocks.map(async (stock) => {
+      const news = await db.select().from(newsArticles).where(eq(newsArticles.stockId, stock.id));
+      return { ...stock, news };
+    }));
+    
+    return results;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getStock(id: number): Promise<StockWithNews | undefined> {
+    const [stock] = await db.select().from(upperLimitStocks).where(eq(upperLimitStocks.id, id));
+    if (!stock) return undefined;
+    
+    const news = await db.select().from(newsArticles).where(eq(newsArticles.stockId, id));
+    return { ...stock, news };
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async updateStockReason(id: number, reason: string): Promise<Stock> {
+    const [updated] = await db.update(upperLimitStocks)
+      .set({ reasonSummary: reason })
+      .where(eq(upperLimitStocks.id, id))
+      .returning();
+    return updated;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async createStock(stock: CreateStockRequest): Promise<Stock> {
+    const [newStock] = await db.insert(upperLimitStocks).values(stock).returning();
+    return newStock;
+  }
+
+  async createNews(stockId: number, news: { title: string; url: string; publisher: string }): Promise<News> {
+    const [newNews] = await db.insert(newsArticles).values({
+      stockId,
+      ...news,
+      publishedAt: new Date(),
+    }).returning();
+    return newNews;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
