@@ -79,7 +79,7 @@ export async function registerRoutes(
       // 2. Analyze using OpenAI
       const newsTitles = stock!.news.map(n => n.title).join("\n");
       const prompt = `
-        The following Korean stock "${stock!.name}" hit the daily upper limit (+30%).
+        The following Korean stock "${stock!.name}" surged by more than 20% today.
         Here are recent news headlines about it:
         ${newsTitles}
 
@@ -89,7 +89,7 @@ export async function registerRoutes(
       `;
 
       const response = await openaiClient.chat.completions.create({
-        model: "gpt-4o", // Changed to 4o as gpt-5.1 is likely a typo or unavailable
+        model: "gpt-4o",
         messages: [{ role: "user", content: prompt }],
       });
 
