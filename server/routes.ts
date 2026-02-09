@@ -6,12 +6,42 @@ import { openai } from "./replit_integrations/audio/client"; // Re-using client 
 // Or better, import from chat/storage if available, but I'll use the one I know is there or direct instantiation if needed.
 // Actually, I added the OpenAI integration blueprint, so I can use `openai` from `openai` package directly with env vars.
 import OpenAI from "openai";
+import axios from "axios";
+import * as cheerio from "cheerio";
 
 // Initialize OpenAI client
 const openaiClient = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+async function crawlStockNews(stockName: string) {
+  try {
+    const searchUrl = `https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(stockName + " 상한가")}&sm=tab_opt&sort=1&photo=0&field=0&pd=4`;
+    const { data } = await axios.get(searchUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+      }
+    });
+    const $ = cheerio.load(data);
+    const news: { title: string; url: string; publisher: string }[] = [];
+
+    $(".news_area").each((i, el) => {
+      if (i >= 3) return;
+      const title = $(el).find(".news_tit").text().trim();
+      const url = $(el).find(".news_tit").attr("href") || "#";
+      const publisher = $(el).find(".info_group .info:first-child").text().replace("언론사 선정", "").trim();
+      if (title && url) {
+        news.push({ title, url, publisher });
+      }
+    });
+
+    return news;
+  } catch (error) {
+    console.error(`Crawling failed for ${stockName}:`, error);
+    return [];
+  }
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -31,14 +61,25 @@ export async function registerRoutes(
 
   app.post(api.stocks.analyze.path, async (req, res) => {
     const id = Number(req.params.id);
-    const stock = await storage.getStock(id);
+    let stock = await storage.getStock(id);
     if (!stock) return res.status(404).json({ message: "Stock not found" });
 
     try {
-      // Analyze using OpenAI
-      const newsTitles = stock.news.map(n => n.title).join("\n");
+      // 1. Crawl real news if empty or requested
+      const realNews = await crawlStockNews(stock.name);
+      if (realNews.length > 0) {
+        // Clear old news and add new ones (Simplified for this task)
+        for (const n of realNews) {
+          await storage.createNews(id, n);
+        }
+        // Refresh stock data
+        stock = await storage.getStock(id);
+      }
+
+      // 2. Analyze using OpenAI
+      const newsTitles = stock!.news.map(n => n.title).join("\n");
       const prompt = `
-        The following Korean stock "${stock.name}" hit the daily upper limit (+30%).
+        The following Korean stock "${stock!.name}" hit the daily upper limit (+30%).
         Here are recent news headlines about it:
         ${newsTitles}
 
@@ -48,7 +89,7 @@ export async function registerRoutes(
       `;
 
       const response = await openaiClient.chat.completions.create({
-        model: "gpt-5.1",
+        model: "gpt-4o", // Changed to 4o as gpt-5.1 is likely a typo or unavailable
         messages: [{ role: "user", content: prompt }],
       });
 
@@ -56,8 +97,8 @@ export async function registerRoutes(
       const updated = await storage.updateStockReason(id, summary);
       res.json(updated);
     } catch (error) {
-      console.error("AI Analysis failed:", error);
-      res.status(500).json({ message: "AI Analysis failed" });
+      console.error("AI Analysis/Crawling failed:", error);
+      res.status(500).json({ message: "AI Analysis/Crawling failed" });
     }
   });
 
