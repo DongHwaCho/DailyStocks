@@ -8,11 +8,65 @@ import { openai } from "./replit_integrations/audio/client"; // Re-using client 
 import OpenAI from "openai";
 import axios from "axios";
 import * as cheerio from "cheerio";
+import cron from "node-cron";
 
 // Initialize OpenAI client
 const openaiClient = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
+
+async function performCrawlAndAnalyze() {
+  try {
+    console.log("Starting scheduled crawl process (17:00)...");
+    const topStocks = await crawlTopStocks();
+    console.log(`Found ${topStocks.length} stocks with 20%+ rise.`);
+
+    for (const stockData of topStocks) {
+      // Create or Update Stock
+      const stock = await storage.createStock(stockData);
+      
+      // Crawl News
+      const news = await crawlStockNews(stock.name);
+      for (const n of news) {
+        await storage.createNews(stock.id, n);
+      }
+
+      // Automatically perform AI analysis for the new stocks
+      const newsTitles = news.map(n => n.title).join("\n");
+      if (newsTitles) {
+        const prompt = `
+          The following Korean stock "${stock.name}" surged by more than 20% today.
+          Here are recent news headlines about it:
+          ${newsTitles}
+
+          Based on these headlines, explain briefly (in 1-2 Korean sentences) why the stock price surged.
+          If the headlines are generic, provide a plausible reason based on common market trends (like 'Sector rotation', 'Earnings surprise').
+          Output in Korean.
+        `;
+
+        const response = await openaiClient.chat.completions.create({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: prompt }],
+        });
+
+        const summary = response.choices[0]?.message?.content || "이유를 분석할 수 없습니다.";
+        await storage.updateStockReason(stock.id, summary);
+      }
+    }
+    console.log("Scheduled crawl and analysis completed.");
+  } catch (error) {
+    console.error("Scheduled crawl process failed:", error);
+  }
+}
+
+// Schedule task to run at 17:00 (5 PM) KST
+// Note: Replit servers usually run in UTC. 17:00 KST is 08:00 UTC.
+cron.schedule('0 17 * * 1-5', () => {
+  performCrawlAndAnalyze();
+}, {
+  scheduled: true,
+  timezone: "Asia/Seoul"
 });
 
 async function crawlStockNews(stockName: string) {
