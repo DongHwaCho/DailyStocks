@@ -65,7 +65,6 @@ async function performCrawlAndAnalyze() {
 cron.schedule('0 17 * * 1-5', () => {
   performCrawlAndAnalyze();
 }, {
-  scheduled: true,
   timezone: "Asia/Seoul"
 });
 
