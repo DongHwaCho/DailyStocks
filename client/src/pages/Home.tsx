@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type StockWithNews } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function Home() {
   const [selectedStock, setSelectedStock] = useState<StockWithNews | null>(null);
@@ -22,6 +24,27 @@ export default function Home() {
   
   const { data: stocks, isLoading, error, refetch } = useStocks(dateStr);
   const analyzeMutation = useAnalyzeStock();
+
+  const crawlMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/stocks/crawl");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/stocks"] });
+      toast({
+        title: "업데이트 완료",
+        description: `${data.count}개의 종목을 새로 가져왔습니다.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "업데이트 실패",
+        description: "데이터를 가져오는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    }
+  });
 
   const handleAnalyze = (id: number) => {
     analyzeMutation.mutate(id, {
@@ -68,21 +91,31 @@ export default function Home() {
                 {format(today, "yyyy년 MM월 dd일 (EEEE)", { locale: ko })}
               </div>
               <h1 className="text-3xl md:text-4xl font-black tracking-tight text-gray-900 flex items-center gap-3">
-                오늘의 상한가 <span className="text-primary"><TrendingUp className="w-8 h-8 md:w-10 md:h-10" strokeWidth={3} /></span>
+                오늘의 급등주 <span className="text-primary"><TrendingUp className="w-8 h-8 md:w-10 md:h-10" strokeWidth={3} /></span>
               </h1>
               <p className="text-muted-foreground mt-2 max-w-2xl">
-                오늘 국내 주식 시장에서 <span className="font-bold text-[#ef4444]">가격제한폭(30%)</span>까지 상승한 종목들의 이슈와 이유를 AI가 실시간으로 분석합니다.
+                오늘 국내 주식 시장에서 <span className="font-bold text-[#ef4444]">20% 이상</span> 상승한 종목들의 이슈와 이유를 AI가 실시간으로 분석합니다.
               </p>
             </div>
             
-            <Button 
-              onClick={() => refetch()} 
-              variant="outline" 
-              className="gap-2 shadow-sm hover:shadow active:scale-95 transition-all"
-            >
-              <RefreshCcw className="w-4 h-4" />
-              새로고침
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => crawlMutation.mutate()} 
+                disabled={crawlMutation.isPending}
+                className="gap-2 shadow-sm"
+              >
+                <RefreshCcw className={`w-4 h-4 ${crawlMutation.isPending ? 'animate-spin' : ''}`} />
+                데이터 수집 시작
+              </Button>
+              <Button 
+                onClick={() => refetch()} 
+                variant="outline" 
+                className="gap-2 shadow-sm hover:shadow active:scale-95 transition-all"
+              >
+                <RefreshCcw className="w-4 h-4" />
+                새로고침
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -138,8 +171,8 @@ export default function Home() {
             <div className="bg-gray-50 p-6 rounded-full mb-4">
               <TrendingUp className="w-12 h-12 text-gray-300" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900">오늘의 상한가 종목이 없습니다</h3>
-            <p className="text-muted-foreground mt-2">아직 장이 시작되지 않았거나, 상한가를 기록한 종목이 없을 수 있습니다.</p>
+            <h3 className="text-xl font-bold text-gray-900">오늘의 급등 종목이 없습니다</h3>
+            <p className="text-muted-foreground mt-2">아직 장이 시작되지 않았거나, 20% 이상 상승한 종목이 없을 수 있습니다.</p>
             <p className="text-sm text-muted-foreground mt-1 text-up">또는 금일 휴장일일 수 있습니다.</p>
           </div>
         )}
