@@ -43,11 +43,92 @@ async function crawlStockNews(stockName: string) {
   }
 }
 
+async function crawlTopStocks() {
+  try {
+    const url = "https://finance.naver.com/sise/sise_upper.naver";
+    const { data } = await axios.get(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+      },
+      responseType: 'arraybuffer'
+    });
+    
+    // Naver Finance uses EUC-KR, so we need to decode it
+    const iconv = await import('iconv-lite');
+    const decodedData = iconv.decode(Buffer.from(data), 'EUC-KR');
+    const $ = cheerio.load(decodedData);
+    
+    const stocks: any[] = [];
+    const today = new Date().toISOString().split('T')[0];
+
+    // Naver Finance "상한가" page table structure
+    // We also want to look at "급등" stocks if possible, but "상한가" page is a good start.
+    // For more comprehensive 20%+ stocks, we'd need sise_quant.naver or similar.
+    // Let's stick to the current request: 20%+ from top rising.
+    
+    $("table.type_2 tr").each((i, el) => {
+      const name = $(el).find("a.tltle").text().trim();
+      if (!name) return;
+
+      const cells = $(el).find("td");
+      const priceText = $(cells[2]).text().replace(/,/g, "").trim();
+      const changeRateText = $(cells[4]).find("span").text().trim().replace(/%/g, "");
+      
+      const price = parseInt(priceText);
+      const changeRate = parseFloat(changeRateText);
+      const symbolMatch = $(el).find("a.tltle").attr("href")?.match(/code=(\d+)/);
+      const symbol = symbolMatch ? symbolMatch[1] : "";
+
+      if (changeRate >= 20) {
+        stocks.push({
+          date: today,
+          symbol,
+          name,
+          price,
+          changeRate: changeRate.toString(),
+          sector: "Unknown", // Naver doesn't provide sector in this list
+          marketType: "KOSPI/KOSDAQ", // Need more logic to distinguish
+          reasonSummary: ""
+        });
+      }
+    });
+
+    return stocks;
+  } catch (error) {
+    console.error("Failed to crawl top stocks:", error);
+    return [];
+  }
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
+  app.post("/api/stocks/crawl", async (req, res) => {
+    try {
+      console.log("Starting full crawl process...");
+      const topStocks = await crawlTopStocks();
+      console.log(`Found ${topStocks.length} stocks with 20%+ rise.`);
+
+      for (const stockData of topStocks) {
+        // Create or Update Stock
+        const stock = await storage.createStock(stockData);
+        
+        // Crawl News
+        const news = await crawlStockNews(stock.name);
+        for (const n of news) {
+          await storage.createNews(stock.id, n);
+        }
+      }
+
+      res.json({ message: "Crawl completed", count: topStocks.length });
+    } catch (error) {
+      console.error("Crawl process failed:", error);
+      res.status(500).json({ message: "Crawl process failed" });
+    }
+  });
+
   app.get(api.stocks.list.path, async (req, res) => {
     const stocks = await storage.getStocks();
     res.json(stocks);
