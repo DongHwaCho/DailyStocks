@@ -117,13 +117,14 @@ export default function Home() {
                         {format(date, "yyyy년 MM월 dd일 (EEEE)", { locale: ko })}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="center">
+                    <PopoverContent className="w-auto p-0 border-none shadow-2xl" align="center" sideOffset={8}>
                       <Calendar
                         mode="single"
                         selected={date}
                         onSelect={(d) => d && setDate(d)}
                         disabled={(d) => d > new Date() || d < new Date("2024-01-01")}
                         initialFocus
+                        className="bg-white rounded-xl"
                       />
                     </PopoverContent>
                   </Popover>
