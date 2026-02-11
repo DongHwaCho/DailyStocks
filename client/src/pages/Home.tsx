@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { ko } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertCircle, Calendar, RefreshCcw, TrendingUp } from "lucide-react";
+import { AlertCircle, Calendar as CalendarIcon, RefreshCcw, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { useStocks, useAnalyzeStock } from "@/hooks/use-stocks";
 import { StockCard } from "@/components/StockCard";
@@ -13,14 +13,17 @@ import { type StockWithNews } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 export default function Home() {
   const [selectedStock, setSelectedStock] = useState<StockWithNews | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [date, setDate] = useState<Date>(new Date());
   const { toast } = useToast();
 
-  const today = new Date();
-  const dateStr = format(today, "yyyy-MM-dd");
+  const dateStr = format(date, "yyyy-MM-dd");
   
   const { data: stocks, isLoading, error, refetch } = useStocks(dateStr);
   const analyzeMutation = useAnalyzeStock();
@@ -51,7 +54,7 @@ export default function Home() {
       onSuccess: () => {
         toast({
           title: "분석 완료",
-          description: "AI가 상한가 이유를 요약했습니다.",
+          description: "AI가 상승 이유를 요약했습니다.",
         });
       },
       onError: () => {
@@ -79,22 +82,69 @@ export default function Home() {
     }
   };
 
+  const changeDate = (days: number) => {
+    setDate(prev => subDays(prev, -days));
+  };
+
   return (
     <div className="min-h-screen bg-slate-50/50 pb-20">
       {/* Hero Header */}
       <div className="bg-white border-b border-border/60 sticky top-0 z-10 backdrop-blur-md bg-white/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium mb-1">
-                <Calendar className="w-4 h-4" />
-                {format(today, "yyyy년 MM월 dd일 (EEEE)", { locale: ko })}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="flex-1">
+              <div className="flex items-center gap-4 mb-3">
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8" 
+                    onClick={() => changeDate(-1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className={cn(
+                          "h-8 px-3 font-medium text-sm gap-2 hover:bg-white",
+                          !date && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="w-3.5 h-3.5" />
+                        {format(date, "yyyy년 MM월 dd일 (EEEE)", { locale: ko })}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="center">
+                      <Calendar
+                        mode="single"
+                        selected={date}
+                        onSelect={(d) => d && setDate(d)}
+                        disabled={(d) => d > new Date() || d < new Date("2024-01-01")}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8" 
+                    onClick={() => changeDate(1)}
+                    disabled={format(date, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
+
               <h1 className="text-3xl md:text-4xl font-black tracking-tight text-gray-900 flex items-center gap-3">
-                오늘의 급등주 <span className="text-primary"><TrendingUp className="w-8 h-8 md:w-10 md:h-10" strokeWidth={3} /></span>
+                급등주 히스토리 <span className="text-primary"><TrendingUp className="w-8 h-8 md:w-10 md:h-10" strokeWidth={3} /></span>
               </h1>
               <p className="text-muted-foreground mt-2 max-w-2xl">
-                오늘 국내 주식 시장에서 <span className="font-bold text-[#ef4444]">20% 이상</span> 상승한 종목들의 이슈와 이유를 AI가 실시간으로 분석합니다.
+                선택한 날짜에 <span className="font-bold text-[#ef4444]">20% 이상</span> 상승한 종목들의 이슈와 이유를 분석합니다.
               </p>
             </div>
             
@@ -154,10 +204,10 @@ export default function Home() {
             animate="show"
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8"
           >
-            <AnimatePresence>
+            <AnimatePresence mode="wait">
               {stocks.map((stock) => (
                 <StockCard 
-                  key={stock.id} 
+                  key={`${stock.id}-${dateStr}`} 
                   stock={stock} 
                   onAnalyze={handleAnalyze}
                   isAnalyzing={analyzeMutation.isPending && analyzeMutation.variables === stock.id}
@@ -169,11 +219,15 @@ export default function Home() {
         ) : (
           <div className="flex flex-col items-center justify-center py-24 text-center bg-white rounded-3xl border border-dashed border-border shadow-sm">
             <div className="bg-gray-50 p-6 rounded-full mb-4">
-              <TrendingUp className="w-12 h-12 text-gray-300" />
+              <CalendarIcon className="w-12 h-12 text-gray-300" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900">오늘의 급등 종목이 없습니다</h3>
-            <p className="text-muted-foreground mt-2">아직 장이 시작되지 않았거나, 20% 이상 상승한 종목이 없을 수 있습니다.</p>
-            <p className="text-sm text-muted-foreground mt-1 text-up">또는 금일 휴장일일 수 있습니다.</p>
+            <h3 className="text-xl font-bold text-gray-900">{format(date, "M월 d일")}의 데이터가 없습니다</h3>
+            <p className="text-muted-foreground mt-2">해당 날짜에 수집된 데이터가 없습니다.</p>
+            {format(date, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd") && (
+              <p className="text-sm text-muted-foreground mt-4">
+                "데이터 수집 시작" 버튼을 눌러 지금 바로 데이터를 가져와보세요.
+              </p>
+            )}
           </div>
         )}
       </main>
